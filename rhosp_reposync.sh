@@ -27,7 +27,14 @@ subscription-manager repos --enable="rhel-7-server-rpms"
 
 # Make sure mandatory packages are installed
 yum -y -q install httpd yum-utils createrepo iproute2
+
+# Start httpd and open firewall is needed
 systemctl start httpd && systemctl enable httpd
+type firewall-cmd &> /dev/null && {
+  firewall-cmd --zone=public --permanent --add-service=http
+  firewall-cmd --reload
+}
+
 
 
 SYNC_DATE="$(date +%Y%m%d)-${RHOSP_version}"
