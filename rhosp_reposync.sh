@@ -26,7 +26,7 @@ subscription-manager repos --disable="*"
 subscription-manager repos --enable="rhel-7-server-rpms"
 
 # Make sure mandatory packages are installed
-yum -y -q install httpd yum-utils createrepo hostname 
+yum -y -q install httpd yum-utils createrepo iproute2
 systemctl start httpd && systemctl enable httpd
 
 
@@ -44,7 +44,7 @@ REPO_LIST="rhel-7-server-satellite-tools-6.2-rpms \
 
 REPO_FOLDER="/var/www/html/${SYNC_DATE}"
 REPO_CONF="${REPO_FOLDER}/local.repo"
-REPO_URL="http://$(hostname -i)/${SYNC_DATE}"
+REPO_URL="http://$(ip route get 1 | awk '{print $NF;exit}')/${SYNC_DATE}"
 
 mkdir -p $REPO_FOLDER
 /bin/rm -f $REPO_CONF
