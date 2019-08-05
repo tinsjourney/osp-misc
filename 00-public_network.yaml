@@ -1,0 +1,59 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Create External Network and default Flavor
+  Required parameters:
+    - public_net_cidr
+    - public_net_gateway
+    - public_net_pool_start
+    - public_net_pool_end
+
+parameters:
+  public_net_cidr:
+    type: string
+    description: CIDR for the public/provider/external network
+    default: 192.168.122.0/24
+  public_net_gateway:
+    type: string
+    description: Default gateway for the external network
+    default: 192.168.122.1
+  public_net_pool_start:
+    type: string
+    description: Start of the IP pool for the external network
+    default: 192.168.122.200
+  public_net_pool_end:
+    type: string
+    description: End of the IP pool for the external network
+    default: 192.168.122.210
+
+resources:
+  instance_flavor:
+    type: OS::Nova::Flavor
+    properties:
+      ephemeral: 1
+      is_public: true
+      name: default
+      ram: 2048
+      vcpus: 2
+
+  public_network:
+    type: OS::Neutron::ProviderNet
+    properties:
+      network_type: flat #vlan
+      #segmentation_id: 1001
+      name: public
+      physical_network: datacentre
+      router_external: true
+      shared: true
+
+  provider_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network: { get_resource: public_network }
+      name: public
+      cidr: { get_param: public_net_cidr }
+      enable_dhcp: False
+      gateway_ip: { get_param: public_net_gateway }
+      allocation_pools:
+        - start: { get_param: public_net_pool_start }
+          end: { get_param: public_net_pool_end }

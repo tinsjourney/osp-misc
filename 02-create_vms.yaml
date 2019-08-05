@@ -1,0 +1,194 @@
+heat_template_version: 2016-10-14
+
+description: This template will create two servers and assign  a floating IP address to each of them.
+
+parameters:
+  tenant_key_name:
+    type: string
+    description: ssh key required for server creation
+    default: 'stack'
+  tenant_server1_name:
+    type: string
+    description: name of the instance
+    default: 'vm1'
+  tenant_server2_name:
+    type: string
+    description: name of the instance
+    default: 'vm2'
+  tenant_net_name:
+    type: string
+    description: name of the tenant network
+    default: private
+  tenant_subnet_name:
+    type: string
+    description: name of the tenant subnet
+    default: private
+  public_net_cidr:
+    type: string
+    description: CIDR for the provider(external) network
+    default: 192.168.122.0/24
+  public_network:
+    type: string
+    description: Name of the provider network.
+    default: public
+  image:
+    type: string
+    description: Name of the glance image to use.
+    default: cirros
+    constraints:
+      - custom_constraint: glance.image
+  app_port:
+    type: number
+    default: 8080
+    description: Default httpd listening port
+  flavor:
+    type: string
+    description: Flavor used for servers
+    default: default
+    constraints:
+      - custom_constraint: nova.flavor
+
+resources:
+  security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: tenant_sg
+      description: Ping, HTTP and SSH
+      rules:
+      - remote_ip_prefix: 0.0.0.0/0
+        protocol: tcp
+        port_range_min: { get_param: app_port }
+        port_range_max: { get_param: app_port }
+      - remote_ip_prefix: 0.0.0.0/0
+        protocol: icmp
+      - remote_ip_prefix: 0.0.0.0/0
+        protocol: tcp
+        port_range_min: 22
+        port_range_max: 22
+  tenant_key:
+    type: OS::Nova::KeyPair
+    properties:
+      name: { get_param: tenant_key_name }
+      #public_key: "ssh-rsa AAAA..... myuser"
+      public_key: { get_file: /home/stack/.ssh/id_rsa.pub }
+  server1_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: tenant_net_name }
+      fixed_ips:
+        - subnet: { get_param: tenant_subnet_name }
+      security_groups: [get_resource: security_group]
+  server1_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_network }
+      port_id: { get_resource: server1_port }
+  
+  server1:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: tenant_server1_name }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      key_name: { get_resource: tenant_key }
+      networks:
+        - port: { get_resource: server1_port }
+      user_data_format: SOFTWARE_CONFIG
+      user_data: { get_resource: server1_init }
+  server1_volume:
+    type: OS::Cinder::Volume
+    properties:
+      name: "server1_volume"
+      size: 10
+  server1_volume_attach:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      volume_id: { get_resource: server1_volume }
+      instance_uuid: { get_resource: server1 }
+      mountpoint: /dev/vdz
+  server1_boot_config:
+    type: OS::Heat::CloudConfig
+    properties:
+        cloud_config:
+          disk_setup:
+            /dev/vdz:
+              table_type: gpt
+              layout: true
+          fs_setup:
+            - label: extra_hdd
+              filesystem: 'xfs'
+              device: '/dev/vdz1'
+          packages:
+            - httpd
+          write_files:
+            - path: /var/www/html/healthcheck
+              content: "Healthcheck\n"
+          runcmd:
+            - [ systemctl, daemon-reload ]
+            - [ systemctl, enable, httpd.service ]
+  server1_boot_script:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: ungrouped
+      str_replace:
+        template: |
+          #!/bin/bash
+          sed -i 's/Listen 80/Listen PORT/' /etc/httpd/conf/httpd.conf
+          echo "It Works for member: $HOSTNAME" > /var/www/html/index.html
+        params:
+          PORT: { get_param: app_port }
+  server1_init:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+      - config: {get_resource: server1_boot_config}
+      - config: {get_resource: server1_boot_script}
+
+  server2_bootable_volume:
+    type: OS::Cinder::Volume
+    properties:
+      name: vm2_boot_volume
+      description: "Server2 boot Volume"
+      size: 20
+      image: { get_param: image }
+  server2:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: tenant_server2_name }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      key_name:  { get_resource: tenant_key }
+      networks:
+        - port: { get_resource: server2_port }
+      block_device_mapping:
+        - device_name: vda
+          volume_id: { get_resource: server2_bootable_volume }
+          delete_on_termination: true
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #!/bin/bash
+            sudo yum install -y nc
+            while true; do echo -e "HTTP/1.0 200 OK\r\n\r\nIt Works for member: $HOSTNAME" | sudo nc -l -p PORT ; done
+          params:
+            PORT: { get_param: app_port }
+  server2_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: tenant_net_name }
+      fixed_ips:
+        - subnet: { get_param: tenant_subnet_name }
+      security_groups: [get_resource: security_group]
+  server2_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_network }
+      port_id: { get_resource: server2_port }
+
+
+outputs:
+  vm1_ip:
+    description: VM1 Floating IP
+    value:
+      { get_attr: [server1_floating_ip, floating_ip_address] }

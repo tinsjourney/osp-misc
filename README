@@ -1,0 +1,20 @@
+source overcloudrc
+
+curl -O http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
+qemu-img convert -f qcow2 -O raw cirros-0.4.0-x86_64-disk.img cirros.raw
+openstack image create --disk-format raw --container-format bare --public cirros --file cirros.raw
+
+Create external network and default flavor
+$ openstack stack create -t 00-public_network.yaml stack-00
+
+If we want to override default parameters:
+$ openstack stack create -t 00-public_network.yaml stack-00 --parameter public_net_pool_start=192.168.122.170 --parameter public_net_pool_end=192.168.122.180
+
+Create Project and user
+openstack stack create -t 01-create_project.yaml stack-01 --wait
+
+sed -e 's/_NAME=admin/_NAME=Red_Hat_validation_project/' -e 's/RNAME=admin/RNAME=redhat_user/' -e 's/OS_PASSWORD=.*/OS_PASSWORD=redhat42/' ~/overcloudrc > ~/redhat.rc
+
+Create Server
+$ openstack stack create -t 02-create_vms.yaml server-stack --parameter image=fedora
+

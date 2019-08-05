@@ -1,0 +1,126 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Create a project and add a user with a role to it
+  Create a tenant network and router.
+
+parameters:
+  project_name:
+    type: string
+    description: Project name that will be created
+    default: 'Red_Hat_validation_project'
+  domain_name:
+    type: string
+    description: Domain where we will create the project
+    default: default
+  project_user:
+    type: string
+    description: User to be created inside the project.
+    default: 'redhat_user'
+  project_user_passwd:
+    type: string
+    description: Password for the project defined user
+    default: 'redhat42'
+  user_role:
+    type: string
+    description: User role to be assigned
+    default: 'ResellerAdmin'
+  tenant_net_name:
+    type: string
+    description: name for the tenant network
+    default: private
+  tenant_subnet_name:
+    type: string
+    description: name for the tenant network
+    default: private
+  tenant_net_cidr:
+    type: string
+    description: CIDR for the tenant network
+    default: 172.20.0.0/24
+  tenant_net_gateway:
+    type: string
+    description: gateway for the tenant network
+    default: 172.20.0.1
+  public_dns:
+    type: comma_delimited_list
+    description: External DNS
+    default: ["192.168.122.1"]
+  tenant_net_pool_start:
+    type: string
+    description: network pool start. typically .11 of whatever /24 is defined
+    default: 172.20.0.11
+  tenant_net_pool_end:
+    type: string
+    description: network pool end. typically .200 of whatever /24 is defined
+    default: 172.20.0.200
+  tenant_router_name:
+    type: string
+    description: Name of the tenant router.
+    default: 'RedHat_router'
+  public_network:
+    type: string
+    description: Name of the provider/external/public network
+    default: 'public'
+
+
+  public_net_cidr:
+    type: string
+    description: CIDR for the public/provider/external network
+    default: 192.168.122.0/24
+  public_net_gateway:
+    type: string
+    description: Default gateway for the external network
+    default: 192.168.122.1
+  public_net_pool_start:
+    type: string
+    description: Start of the IP pool for the external network
+    default: 192.168.122.200
+  public_net_pool_end:
+    type: string
+    description: End of the IP pool for the external network
+    default: 192.168.122.210
+
+resources:
+  openstack_project:
+    type: OS::Keystone::Project
+    properties:
+      name: { get_param: project_name }
+      domain: { get_param: domain_name }
+  openstack_user:
+    type: OS::Keystone::User
+    properties:
+      name: { get_param: project_user }
+      domain: { get_param: domain_name }
+      default_project: { get_resource: openstack_project }
+      password: { get_param: project_user_passwd }
+      roles:
+        - role: { get_param: user_role}
+          project: { get_resource: openstack_project }
+  tenant_net:
+    type: OS::Neutron::Net
+    properties:
+      name: { get_param: tenant_net_name }
+      tenant_id: { get_resource: openstack_project }
+  tenant_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: { get_param: tenant_subnet_name }
+      network_id: { get_resource: tenant_net }
+      cidr: { get_param: tenant_net_cidr }
+      dns_nameservers: { get_param: public_dns }
+      gateway_ip: { get_param: tenant_net_gateway }
+      allocation_pools:
+        - start: { get_param: tenant_net_pool_start }
+          end: { get_param: tenant_net_pool_end }
+      tenant_id: { get_resource: openstack_project }
+  tenant_router:
+    type: OS::Neutron::Router
+    properties:
+      name: { get_param: tenant_router_name }
+      external_gateway_info:
+        network: { get_param: public_network }
+  tenant_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: tenant_router }
+      subnet_id: { get_resource: tenant_subnet }
