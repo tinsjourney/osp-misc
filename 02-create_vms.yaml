@@ -135,6 +135,8 @@ resources:
           #!/bin/bash
           sed -i 's/Listen 80/Listen PORT/' /etc/httpd/conf/httpd.conf
           echo "It Works for member: $HOSTNAME" > /var/www/html/index.html
+          lsblk >> /var/www/html/index.html
+          systemctl start httpd.service
         params:
           PORT: { get_param: app_port }
   server1_init:
