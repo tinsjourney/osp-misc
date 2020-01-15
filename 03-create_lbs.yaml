@@ -23,7 +23,7 @@ parameters:
     description: VM2 ip on private access subnet
 
 resources:
-  # openstack loadbalancer create --name lb1 --vip-subnet-id private-subnet
+  # openstack loadbalancer create --name lb1 --vip-subnet-id tenant-subnet
   loadbalancer:
     type: OS::Octavia::LoadBalancer
     properties:
@@ -56,7 +56,7 @@ resources:
       max_retries: 4
       timeout: 10
       type: HTTP
-      url_path: /healthcheck2
+      url_path: /healthcheck
       pool: { get_resource: listener_pool }
   
   # openstack loadbalancer member create --subnet-id private-subnet --address 192.0.2.10 --protocol-port 8080 pool1
