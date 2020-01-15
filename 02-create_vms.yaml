@@ -23,10 +23,6 @@ parameters:
     type: string
     description: name of the tenant subnet
     default: private
-  public_net_cidr:
-    type: string
-    description: CIDR for the provider(external) network
-    default: 192.168.122.0/24
   public_network:
     type: string
     description: Name of the provider network.
@@ -194,3 +190,7 @@ outputs:
     description: VM1 Floating IP
     value:
       { get_attr: [server1_floating_ip, floating_ip_address] }
+  vm2_ip:
+    description: VM2 Floating IP
+    value:
+      { get_attr: [server2_floating_ip, floating_ip_address] }
