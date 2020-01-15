@@ -30,7 +30,7 @@ parameters:
   image:
     type: string
     description: Name of the glance image to use.
-    default: cirros
+    default: centos8
     constraints:
       - custom_constraint: glance.image
   app_port:
@@ -101,40 +101,42 @@ resources:
     properties:
       volume_id: { get_resource: server1_volume }
       instance_uuid: { get_resource: server1 }
-      mountpoint: /dev/vdz
+      mountpoint: /dev/vdb
   server1_boot_config:
     type: OS::Heat::CloudConfig
     properties:
         cloud_config:
           disk_setup:
-            /dev/vdz:
+            /dev/vdb:
               table_type: gpt
               layout: true
           fs_setup:
             - label: extra_hdd
               filesystem: 'xfs'
-              device: '/dev/vdz1'
+              device: '/dev/vdb1'
           packages:
             - httpd
           write_files:
             - path: /var/www/html/healthcheck
               content: "Healthcheck\n"
+              owner: apache:apache
           runcmd:
             - [ systemctl, daemon-reload ]
             - [ systemctl, enable, httpd.service ]
+            - [ systemctl, start, httpd.service ]
   server1_boot_script:
     type: OS::Heat::SoftwareConfig
     properties:
       group: ungrouped
-      str_replace:
-        template: |
-          #!/bin/bash
-          sed -i 's/Listen 80/Listen PORT/' /etc/httpd/conf/httpd.conf
-          echo "It Works for member: $HOSTNAME" > /var/www/html/index.html
-          lsblk >> /var/www/html/index.html
-          systemctl start httpd.service
-        params:
-          PORT: { get_param: app_port }
+      config:
+        str_replace:
+          template: |
+            #!/bin/bash
+            sed -i 's/Listen 80/Listen PORT/' /etc/httpd/conf/httpd.conf
+            echo "It Works for member: $HOSTNAME" > /var/www/html/index.html
+            lsblk >> /var/www/html/index.html
+          params:
+            PORT: { get_param: app_port }
   server1_init:
     type: OS::Heat::MultipartMime
     properties:
@@ -153,7 +155,6 @@ resources:
     type: OS::Nova::Server
     properties:
       name: { get_param: tenant_server2_name }
-      image: { get_param: image }
       flavor: { get_param: flavor }
       key_name:  { get_resource: tenant_key }
       networks:
@@ -167,8 +168,13 @@ resources:
         str_replace:
           template: |
             #!/bin/bash
-            sudo yum install -y nc
-            while true; do echo -e "HTTP/1.0 200 OK\r\n\r\nIt Works for member: $HOSTNAME" | sudo nc -l -p PORT ; done
+            #yum install -y nc
+            #while true; do echo -e "HTTP/1.0 200 OK\r\n\r\nIt Works for member: $HOSTNAME" | sudo nc -l -p PORT ; done
+            yum install -y httpd
+            sed -i 's/Listen 80/Listen PORT/' /etc/httpd/conf/httpd.conf
+            echo "It Works for member: $HOSTNAME" > /var/www/html/index.html
+            lsblk >> /var/www/html/index.html
+            systemctl start httpd.service
           params:
             PORT: { get_param: app_port }
   server2_port:
