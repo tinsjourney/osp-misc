@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # List all orphan object because of a deleted project
 
@@ -20,8 +20,11 @@ import prettytable
 
 from oslo_utils import encodeutils
 from oslo_utils import importutils
-from keystoneclient import session as ksc_session
-from keystoneclient.auth.identity import v3
+
+
+
+from keystoneauth1.identity import v3
+from keystoneauth1 import session
 
 from keystoneclient.v3 import client as keystone_client
 from neutronclient.v2_0 import client as neutron_client
@@ -30,38 +33,41 @@ from glanceclient.v2 import client as glance_client
 from novaclient import client as nova_client
 
 # Define variables to connect to nova
-if os.environ['OS_TENANT_NAME']:
+
+
+
+if os.environ.get('OS_TENANT_NAME'):
     os_tenant_name = os.environ['OS_TENANT_NAME']
 else:
     os_tenant_name = os.environ['OS_PROJECT_NAME']
 
-auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
+auth = v3.Password(auth_url=os.environ['OS_AUTH_URL']+"/v3",
                    username=os.environ['OS_USERNAME'],
                    password=os.environ['OS_PASSWORD'],
                    project_name=os_tenant_name,
-                   user_domain_id='default',
-                   project_domain_id='default')
+                   user_domain_name='default',
+                   project_domain_name='default')
 
-session = ksc_session.Session(auth=auth)
-#session = ksc_session..Session(auth=auth,verify='/path/to/ca.cert')
+sess = session.Session(auth=auth)
+
 try:
-    keystone = keystone_client.Client(session=session)
+    keystone = keystone_client.Client(session=sess)
 except Exception as e:
     raise e
 try:
-    nova = nova_client.Client("2.1", session=session)
+    nova = nova_client.Client("2.1", session=sess)
 except Exception as e:
     raise e
 try:
-    neutron = neutron_client.Client(session=session)
+    neutron = neutron_client.Client(session=sess)
 except Exception as e:
     raise e
 try:
-    cinder = cinder_client.Client(session=session)
+    cinder = cinder_client.Client(session=sess)
 except Exception as e:
     raise e
 try:
-    glance = glance_client.Client(session=session)
+    glance = glance_client.Client(session=sess)
 except Exception as e:
     raise e
 
@@ -83,7 +89,8 @@ def print_list(objs, fields, formatters={}):
                 row.append(data)
         pt.add_row(row)
 
-    print(encodeutils.safe_encode(pt.get_string()))
+    #print(encodeutils.safe_encode(pt.get_string()))
+    print(pt.get_string())
 
 def get_projectids():
     return [project.id for project in keystone.projects.list()]
