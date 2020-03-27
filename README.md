@@ -15,7 +15,9 @@ $ openstack stack create -t 00-public_network.yaml provider-stack
 If we want to override default parameters :
 
 ```
-$ openstack create -t 00-public_network.yaml stack-00 \
+$ openstack stack create -t 00-public_network.yaml stack-00 \
+	--parameter public_net_cidr=192.168.122.0/24 \
+	--parameter public_net_gateway=192.168.122.1 \
 	--parameter public_net_pool_start=192.168.122.170 \
 	--parameter public_net_pool_end=192.168.122.180
 ```
@@ -41,7 +43,7 @@ $ openstack image create --disk-format raw --container-format bare --public cent
 $ source ~/overcloudrc
 $ openstack stack create -t 01-create_project.yaml stack-redhat \
 	--parameter public_dns=8.8.8.8 \
-	--parameter public_network=external_fips
+	--parameter public_network=public
 ```
 
 ## Configure user RC file
@@ -62,8 +64,8 @@ $ sed -e 's/_NAME=admin/_NAME=Red_Hat_validation_project/' -e 's/RNAME=admin/RNA
 ```
 $ source ~/redhat.rc
 $ openstack stack create -t 02-create_vms.yaml server-stack  \
-	--parameter public_network=external_fips \
-	--parameter flavor=small --wait
+	--parameter public_network=public \
+	--parameter flavor=default --wait
 ```
 
 Wait for instances post install to finish
