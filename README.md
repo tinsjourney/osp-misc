@@ -16,10 +16,10 @@ If we want to override default parameters :
 
 ```
 $ openstack stack create -t 00-public_network.yaml stack-00 \
-	--parameter public_net_cidr=192.168.122.0/24 \
-	--parameter public_net_gateway=192.168.122.1 \
-	--parameter public_net_pool_start=192.168.122.170 \
-	--parameter public_net_pool_end=192.168.122.180
+	--parameter public_net_cidr=192.168.123.0/24 \
+	--parameter public_net_gateway=192.168.123.1 \
+	--parameter public_net_pool_start=192.168.123.170 \
+	--parameter public_net_pool_end=192.168.123.180
 ```
 
 ## Upload Centos8 image to glance
@@ -65,7 +65,8 @@ $ sed -e 's/_NAME=admin/_NAME=Red_Hat_validation_project/' -e 's/RNAME=admin/RNA
 $ source ~/redhat.rc
 $ openstack stack create -t 02-create_vms.yaml server-stack  \
 	--parameter public_network=public \
-	--parameter flavor=default --wait
+	--parameter flavor=default \
+	--parameter image=centos8 --wait
 ```
 
 Wait for instances post install to finish
