@@ -44,7 +44,7 @@ parameters:
   public_dns:
     type: comma_delimited_list
     description: External DNS
-    default: ["192.168.122.1"]
+    default: ["192.168.123.1"]
   tenant_net_pool_start:
     type: string
     description: network pool start. typically .11 of whatever /24 is defined
@@ -61,24 +61,6 @@ parameters:
     type: string
     description: Name of the provider/external/public network
     default: 'public'
-
-
-  public_net_cidr:
-    type: string
-    description: CIDR for the public/provider/external network
-    default: 192.168.122.0/24
-  public_net_gateway:
-    type: string
-    description: Default gateway for the external network
-    default: 192.168.122.1
-  public_net_pool_start:
-    type: string
-    description: Start of the IP pool for the external network
-    default: 192.168.122.200
-  public_net_pool_end:
-    type: string
-    description: End of the IP pool for the external network
-    default: 192.168.122.210
 
 resources:
   openstack_project:
