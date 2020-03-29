@@ -25,6 +25,14 @@ parameters:
     type: string
     description: End of the IP pool for the external network
     default: 192.168.123.210
+  public_net_type:
+    type: string
+    description: VLAN or Flat public network
+    default: "vlan"
+  public_net_vlan_id:
+    type: number
+    description: Public network vlan ID
+    default: 50
 
 resources:
   instance_flavor:
@@ -39,12 +47,27 @@ resources:
   public_network:
     type: OS::Neutron::ProviderNet
     properties:
-      network_type: flat #vlan
-      #segmentation_id: 1001
+      network_type: flat
       name: public
       physical_network: datacentre
       router_external: true
       shared: true
+    condition:
+      equals:
+        - get_param: public_net_type
+        - "flat"
+
+  public_network:
+    type: OS::Neutron::ProviderNet
+    properties:
+      network_type: vlan
+      segmentation_id: { get_param: public_net_vlan_id }
+      name: public
+      physical_network: datacentre
+      router_external: true
+      shared: true
+    condition:
+      equals: [{get_param: public_net_type}, "vlan"]
 
   provider_subnet:
     type: OS::Neutron::Subnet
