@@ -1,0 +1,89 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Create a load balancer of port 80 between 2 servers
+  listening on port 8080
+
+parameters:
+  public_network:
+    type: string
+    description: Name of the provider network.
+    default: public
+  tenant_subnet:
+    type: string
+    description: Subnet on which the load balancer will be located
+    default: private
+    constraints:
+    - custom_constraint: neutron.subnet
+  server1_tenant_ip:
+    type: string
+    description: VM1 ip on private access subnet
+  server2_tenant_ip:
+    type: string
+    description: VM2 ip on private access subnet
+
+resources:
+  # openstack loadbalancer create --name lb1 --vip-subnet-id tenant-subnet
+  loadbalancer:
+    type: OS::Octavia::LoadBalancer
+    properties:
+      name: lb1
+      vip_subnet: { get_param: tenant_subnet }
+
+  # openstack loadbalancer listener create --name listener 1 --protocol HTTP --protocol-port 80 lb1
+  listener:
+    type: OS::Octavia::Listener
+    properties:
+      name: listener1
+      protocol: HTTP
+      protocol_port: 80
+      loadbalancer: { get_resource: loadbalancer }
+  
+  # openstack loadbalancer pool create --name pool1 --lb-algorithm ROUND_ROBIN --listener listener1 --protocol HTTP
+  listener_pool:
+    type: OS::Octavia::Pool
+    properties:
+      name: pool1
+      lb_algorithm: ROUND_ROBIN
+      listener: { get_resource: listener }
+      protocol: HTTP
+
+  # openstack loadbalancer healthmonitor create --delay 5 --max-retries 4 --timeout 10 --type HTTP --url-path /healthcheck pool1
+  health_monitor:
+    type: OS::Octavia::HealthMonitor
+    properties:
+      delay: 5
+      max_retries: 4
+      timeout: 10
+      type: HTTP
+      url_path: /healthcheck
+      pool: { get_resource: listener_pool }
+  
+  # openstack loadbalancer member create --subnet-id private-subnet --address 192.0.2.10 --protocol-port 8080 pool1
+  poolmember1:
+    type: OS::Octavia::PoolMember
+    properties:
+      address: {get_param: server1_tenant_ip }
+      protocol_port: 8080
+      pool: { get_resource: listener_pool}
+      
+  # openstack loadbalancer member create --subnet-id private-subnet --address 192.0.2.11 --protocol-port 8080 pool1
+  poolmember2:
+    type: OS::Octavia::PoolMember
+    properties:
+      address: {get_param: server2_tenant_ip }
+      protocol_port: 8080
+      pool: { get_resource: listener_pool}
+
+  # openstack floating ip create external-access
+  lb_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_network }
+      port_id: { get_attr: [loadbalancer, vip_port_id] }
+
+outputs:
+  lb_ip:
+    description: LB Floating IP
+    value:
+      { get_attr: [lb_floating_ip, floating_ip_address] }
