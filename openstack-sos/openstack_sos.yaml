@@ -1,0 +1,13 @@
+---
+- name: "Generate and Send sosreports to Red Hat Customer Portal"
+  hosts: "{{ nodes }}"
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: sosreport
+      vars:
+        - sosreport_options: ""
+        - rhn_user: "my_user"
+        - rhn_pass: "my_pass"
+...
