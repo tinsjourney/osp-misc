@@ -36,7 +36,6 @@ $ ansible-playbook -i /usr/bin/tripleo-ansible-inventory openstack_sos.yaml -e "
   roles:
     - role: sosreport
       vars:
-        - sosreport_options: ""
         - rhn_user: "my_user"
         - rhn_pass: "my_pass"
         - sosreport_delete_local_sosreports: false
@@ -52,3 +51,13 @@ $ ansible-playbook -i /usr/bin/tripleo-ansible-inventory openstack_sos.yaml -e "
         - rhn_user: "my_user"
         - rhn_pass: "my_pass"
 ```
+
+Upload using corporate proxy:
+
+```
+  roles:
+    - role: sosreport
+      vars:
+        - rhn_user: "my_user"
+        - rhn_pass: "my_pass"
+        - https_proxy: "http://proxy.corp:3128"
