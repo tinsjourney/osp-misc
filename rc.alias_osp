@@ -1,0 +1,9 @@
+
+REMOTE_IP=$(sudo ovs-vsctl get open . external_ids:ovn-remote)
+NBDB=$(echo $REMOTE_IP | sed 's/6642/6641/g')
+SBDB=$REMOTE_IP
+alias ovn-sbctl="sudo podman exec ovn_controller ovn-sbctl -p /etc/pki/tls/private/ovn_controller.key -c /etc/pki/tls/certs/ovn_controller.crt -C /etc/ipa/ca.crt --db=$SBDB"
+alias ovn-nbctl="sudo podman exec ovn_controller ovn-nbctl -p /etc/pki/tls/private/ovn_controller.key -c /etc/pki/tls/certs/ovn_controller.crt -C /etc/ipa/ca.crt --db=$NBDB"
+alias ovn-trace="sudo podman exec ovn_controller ovn-trace -p /etc/pki/tls/private/ovn_controller.key -c /etc/pki/tls/certs/ovn_controller.crt -C /etc/ipa/ca.crt --db=$SBDB"
+
+alias virsh="sudo podman exec nova_virtqemud virsh"
