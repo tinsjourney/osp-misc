@@ -95,20 +95,38 @@ QCOW=overcloud-hardened-uefi-full.qcow2
 TMP_DIR=${HOME}/overcloud-full-temp
 IMAGE=${TMP_DIR}/${QCOW}
 
+RHOSP_VERSION=$(rpm -q --queryformat='%{VERSION}' rhosp-release) || {
+    echoerr "Not able to find RHOSP version, please install rhosp-release"
+    exit_on_err
+}
+
 check_requirements || exit_on_err
 
 mkdir -p ${TMP_DIR}
 
 if $DIRECTOR_NODE; then
-  IMG_SIZE=$(qemu-img info ~stack/images/${QCOW} | awk '/virtual size:/ {print $3}')
-  qemu-img create -f qcow2 ${IMAGE} ${IMG_SIZE}G
-  virt-resize --expand /dev/sda4 --lv-expand /dev/vg/lv_var ~stack/images/${QCOW} ${IMAGE}
+
+  if ! $(printf '%s\n' "17.1.4" "$RHOSP_VERSION" | sort --check=quiet --version-sort) ; then
+    echoinfo "---===== RHOSP < 17.1.4 expanding /var fs =====---"
+    IMG_SIZE=$(qemu-img info ~stack/images/${QCOW} | awk '/virtual size:/ {print $3}')
+    qemu-img create -f qcow2 ${IMAGE} ${IMG_SIZE}G
+    virt-resize --expand /dev/sda4 --lv-expand /dev/vg/lv_var ~stack/images/${QCOW} ${IMAGE}
+  else
+    echoinfo "---===== RHOSP >= 17.1.4 updating image ... =====---"
+    cp ~stack/images/${QCOW} ${IMAGE}
+  fi
 else
   rsync -e ssh -a stack@${UNDERCLOUD}:images/${QCOW} ${IMAGE}.orig --progress
 
-  IMG_SIZE=$(qemu-img info ${IMAGE}.orig | awk '/virtual size:/ {print $3}')
-  qemu-img create -f qcow2 ${IMAGE} ${IMG_SIZE}G
-  virt-resize --expand /dev/sda4 --lv-expand /dev/vg/lv_var ${IMAGE}.orig ${IMAGE}
+  if ! $(printf '%s\n' "17.1.4" "$RHOSP_VERSION" | sort --check=quiet --version-sort) ; then
+    echoinfo "---===== RHOSP < 17.1.4 expanding /var fs =====---"
+    IMG_SIZE=$(qemu-img info ${IMAGE}.orig | awk '/virtual size:/ {print $3}')
+    qemu-img create -f qcow2 ${IMAGE} ${IMG_SIZE}G
+    virt-resize --expand /dev/sda4 --lv-expand /dev/vg/lv_var ${IMAGE}.orig ${IMAGE}
+  else
+    echoinfo "---===== RHOSP >= 17.1.4 updating image ... =====---"
+    mv ${IMAGE}.orig ${IMAGE}
+  fi
 fi
 
 cat << EOF > ${TMP_DIR}/katello.facts
@@ -144,6 +162,7 @@ virt-customize -a ${IMAGE} \
         --selinux-relabel
 
 virt-cat -a ${IMAGE} /var/log/dnf.log
+virt-ls -a ${IMAGE} /boot
 echoinfo "\
 CHECK IF UPDATE IS OK
 
