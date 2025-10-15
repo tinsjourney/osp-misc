@@ -1,0 +1,163 @@
+---
+- hosts: all
+  become: true
+
+  tasks:
+    - name: "Make sure we boot on RHEL9.2 kernel"
+      ansible.builtin.assert:
+        that: 'ansible_kernel | regex_search("5.14.0-.*.el9_2.x86_64")'
+        success_msg: "We booted on RHEL9 kernel"
+        fail_msg: "We booted on RHEL8 kernel"
+
+    - name: "Remove any remaining Leapp packages from the exclude list"
+      ansible.builtin.lineinfile:
+        path: /etc/dnf/dnf.conf
+        regexp: '^exclude=.*'
+        line: 'exclude='
+
+    - name: "Gather the packages facts"
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: "Remove RHEL8 Kernel"
+      ansible.builtin.package:
+        name: "{{ item.name }}-{{ item.version }}-{{ item.release }}"
+        state: absent
+      when:
+        - item.version == "4.18.0"
+      loop: "{{ ansible_facts.packages['kernel-core'] }}"
+      register: removed_kernel
+
+    - name: "Remove remanings entry from grub"
+      block:
+
+      - name: "Remove leftover RHEL8 kernel entries"
+        ansible.builtin.shell: "grubby --remove-kernel=/boot/vmlinuz-{{ kernel.version }}-{{ kernel.release }}.{{ kernel.arch }}"
+        when:
+          - kernel.version == "4.18.0"
+        loop: "{{ ansible_facts.packages['kernel-core'] }}"
+        loop_control:
+          loop_var: kernel
+        ignore_errors: true
+
+      - name: "List All rescue kernel"
+        ansible.builtin.shell: "grubby --info=ALL | awk -F[=,] '$0 ~ /^kernel.*rescue.*/ {print $2}'"
+        register: grubby_rescue
+        changed_when: false
+
+      - name: "Remove rescue kernel"
+        ansible.builtin.shell: "grubby --remove-kernel={{ item }}"
+        when:
+          - grubby_rescue.stdout != ""
+        loop: "{{ grubby_rescue.stdout_lines |  list }}"
+        ignore_errors: true
+
+      when:
+        - removed_kernel.changed
+
+    - name: "Locate remaining RHEL8 package"
+      ansible.builtin.shell: 'rpm -qa | grep -e "\.el[78]" | grep -vE "^(gpg-pubkey|libmodulemd|katello-ca-consumer|paunch-services)" | sort'
+      register: remaining_rhel8_packages
+      changed_when: false
+
+    - name: "Remove remaining RHEL 8 packages, including remaining Leapp packages"
+      ansible.builtin.package:
+        state: absent
+        name:
+          - "{{ remaining_rhel8_packages.stdout_lines | join(',') }}"
+          - leapp-deps-el9
+          - leapp-repository-deps-el9
+          - leapp
+          - leapp-repository-openstack
+          - leapp-upgrade-el8toel9
+
+    - name: "Remove alll remaining upgrade-related data"
+      ansible.builtin.file:
+        state: absent
+        path: "{{ item }}"
+      loop:
+        - /var/log/leapp
+        - /root/tmp_leapp_py3
+        - /var/lib/leapp
+        - /etc/yum.repos.d/lvm.repo
+
+    - name: "Get current kernel command line arguments"
+      ansible.builtin.shell: 'tr -s "$IFS" "\n" </proc/cmdline | grep -ve "^BOOT_IMAGE=" -e "^initrd=" | tr "\n" " "'
+      register: boot_options
+      changed_when: false
+
+    - name: "Set current kernel command line arguments to the new default to ensure that future kernel updates boot with correct parameters"
+      ansible.builtin.copy:
+        dest: /etc/kernel/cmdline
+        content: "{{ boot_options.stdout }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: "Make sure package dracut-config-rescue is present"
+      ansible.builtin.package:
+        name: dracut-config-rescue
+        state: present
+
+    - name: "Get RHEL9 kernel grubby ID"
+      ansible.builtin.shell: |
+        grubby --info=ALL  |awk -F[=-] '$0 ~ /^id.*/ {gsub("\"","",$2); print $2}'
+      register: rhel9_grubby_id
+      changed_when: false
+
+    - name: "Find existing rescue kernel and initial RAM disk"
+      ansible.builtin.find:
+        paths: "/boot"
+        file_type: file
+        patterns:
+          - "vmlinuz-*rescue*"
+          - "initramfs-*rescue*"
+      register: ramdisk_found
+
+    - name: "Remove the existing rescue kernel and initial RAM disk"
+      ansible.builtin.file:
+        state: absent
+        path: "{{ item.path }}"
+      loop: "{{ ramdisk_found.files }}"
+
+    - name: "Reinstall the rescue kernel and related initial RAM disk"
+      ansible.builtin.shell: |
+        /usr/lib/kernel/install.d/51-dracut-rescue.install add "$(uname -r)" /boot "/boot/vmlinuz-$(uname -r)"
+      args:
+        chdir: "/boot"
+        creates: "vmlinuz-0-rescue-{{ rhel9_grubby_id.stdout_lines | list | first }}"
+
+    - name: "Check if gpg-pubkey rhel 8 is present"
+      ansible.builtin.shell: |
+        rpm -qa |grep gpg-pubkey-d4082792-5b32db75
+      register: gpg_rpm
+      changed_when: false
+      ignore_errors: true
+
+    - name: "Fix dnf 'Hash algorithm SHA1 not available' : https://access.redhat.com/solutions/6989576"
+      ansible.builtin.shell: |
+        rpm --erase --allmatches gpg-pubkey-d4082792-5b32db75
+      when: "'gpg-pubkey-d4082792-5b32db75' in gpg_rpm.stdout_lines"
+
+    - name: "Remove kernel legacy"
+      ansible.builtin.shell: "grubby --remove-kernel=/boot/{{ item }}"
+      ignore_errors: true
+      with_items:
+        - "vmlinuz-4.18.0-193.51.1.el8_2.x86_64"
+        - "vmlinuz-4.18.0-305.el8.x86_64"
+        - "vmlinuz-4.18.0-305.40.2.el8_4.x86_64"
+        - "vmlinuz-3.10.0-1160.25.1.el7.x86_64"
+        - "vmlinuz-3.10.0-1160.45.1.el7.x86_64"
+        - "vmlinuz-3.10.0-1160.59.1.el7.x86_64"
+
+    - name: "Enable SELinux"
+      ansible.builtin.selinux:
+        policy: targeted
+        state: enforcing
+      register: selinux
+
+    - name: "Fixfiles onboot"
+      ansible.builtin.file:
+        path: /.autorelabel
+        state: touch
+      when: selinux.changed

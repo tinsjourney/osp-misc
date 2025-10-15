@@ -7,3 +7,4 @@ used for my day to day job
 * audit.py : check for zombie ressources
 * openstack-sos : Generate sos report and send it to Red Hat case
 * update-overcloud-full.sh : Update overcloud-full.qcow2 to last packages using satellite
+* post_system_upgrade.yaml: Clean RHEL hosts after leapp
