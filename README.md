@@ -6,5 +6,5 @@ used for my day to day job
 * heat-stacks: test OpenStack deployment using heat-stack
 * audit.py : check for zombie ressources
 * openstack-sos : Generate sos report and send it to Red Hat case
-* update-overcloud-full.sh : Update overcloud-full.qcow2 to last packages using satellite
+* update-overcloud-full.sh : Update overcloud-hardened-uefi-full.qcow2 to last packages using satellite
 * post_system_upgrade.yaml: Clean RHEL hosts after leapp
