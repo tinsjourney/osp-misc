@@ -28,7 +28,7 @@ from keystoneauth1 import session
 
 from keystoneclient.v3 import client as keystone_client
 from neutronclient.v2_0 import client as neutron_client
-from cinderclient.v2 import client as cinder_client
+from cinderclient.v3 import client as cinder_client
 from glanceclient.v2 import client as glance_client
 from novaclient import client as nova_client
 
@@ -131,8 +131,8 @@ def cinder_audit():
         if getattr(v, tenant_attr) not in projectids]
     if zombie_volumes:
         print('>>>>>> ZOMBIE VOLUME LIST')
-        print_list(zombie_volumes, ['id', 'display_name',
-                                'os-vol-tenant-attr:tenant_id'])
+        print_list(zombie_volumes, ['id', 'name',
+                                'os-vol-tenant-attr:tenant_id', 'status'])
 
 def glance_audit():
     # image
